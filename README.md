@@ -7,7 +7,27 @@ A comprehensive document processing system for railway operations with OCR, AI a
 - 🚂 **Railway-Specific Document Classification** - Automatically categorizes documents based on railway operations
 - 🔍 **Advanced OCR** - Extracts text from PDFs and images with support for Malayalam + English
 - 🤖 **AI-Powered Analysis** - Generates intelligent summaries using GitHub Models
-- 💬 **Interactive Chat** - Ask questions about processed documents
+- 3. **AI service not responding**: Check GitHub token configuration and network connectivity
+4. **Chat responses are generic**: Verify that the GitHub token is valid and has appropriate permissions
+
+### AI Chat Features
+
+The AI chat functionality provides:
+
+- **Context-Aware Responses**: The AI understands your document content and provides relevant answers
+- **Information Extraction**: Ask for specific dates, numbers, references, or technical details
+- **Railway Expertise**: Specialized knowledge about railway terminology, standards, and regulations
+- **Safety & Compliance**: Analysis of safety protocols and compliance requirements
+- **Document Analysis**: Insights about document structure, content, and key information
+
+**Example Questions:**
+- "What are the main safety requirements mentioned?"
+- "Extract all important dates and deadlines"
+- "What railway standards are referenced in this document?"
+- "Explain the compliance requirements"
+- "Summarize the technical specifications"
+
+**Note**: AI chat requires a GitHub token to be configured. See the [AI Chat Setup Guide](./AI_CHAT_SETUP.md) for detailed instructions.
 - 🎯 **KMRL Integration** - Specialized support for Kochi Metro Rail Limited documents
 - 🌐 **Modern React Frontend** - Responsive and intuitive user interface
 

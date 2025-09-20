@@ -180,6 +180,122 @@ def process_documents():
     except Exception as e:
         return jsonify({'error': f'Processing failed: {str(e)}'}), 500
 
+def generate_chat_response(message: str, processed_data: dict) -> str:
+    """
+    Generate AI chat response using the LLM service
+    """
+    try:
+        from openai import OpenAI
+        
+        # Get GitHub token
+        token = os.getenv("GITHUB_TOKEN")
+        if not token:
+            return "I need a GitHub token to be configured to provide intelligent responses. Please check the environment configuration."
+        
+        # Initialize OpenAI client with GitHub endpoint
+        client = OpenAI(
+            base_url=os.getenv("GITHUB_MODELS_ENDPOINT", "https://models.github.ai"),
+            api_key=token
+        )
+        
+        # Prepare context from processed document data
+        context = ""
+        if processed_data:
+            if processed_data.get('document_type'):
+                context += f"Document Type: {processed_data['document_type']}\n\n"
+            
+            if processed_data.get('summary'):
+                context += f"Document Summary: {processed_data['summary']}\n\n"
+            
+            if processed_data.get('classification'):
+                classifications = processed_data['classification']
+                if classifications:
+                    context += "Railway Classifications:\n"
+                    for cls in classifications:
+                        context += f"- {cls.get('category', 'Unknown')}: {cls.get('confidence', 0):.2f} confidence\n"
+                        if cls.get('keywords'):
+                            context += f"  Keywords: {', '.join(cls['keywords'])}\n"
+                    context += "\n"
+            
+            if processed_data.get('key_information'):
+                key_info = processed_data['key_information']
+                context += "Key Information:\n"
+                for key, value in key_info.items():
+                    context += f"- {key}: {value}\n"
+                context += "\n"
+            
+            # Add a portion of the OCR text for context (limit to avoid token limits)
+            ocr_text = processed_data.get('ocr_text', '')
+            if ocr_text:
+                # Limit OCR text to first 2000 characters for context
+                ocr_preview = ocr_text[:2000]
+                if len(ocr_text) > 2000:
+                    ocr_preview += "...\n[Document continues]"
+                context += f"Document Content (Preview):\n{ocr_preview}\n\n"
+        
+        # Create the system prompt
+        system_prompt = """You are an AI assistant specialized in analyzing railway documents. You have access to processed document data including OCR text, summaries, and classifications. 
+
+Your role is to:
+1. Answer questions about the railway documents based on the provided context
+2. Provide specific information extraction when asked
+3. Explain railway terminology and concepts
+4. Help with compliance and safety-related queries
+5. Provide insights about document structure and content
+
+Be accurate, helpful, and specific in your responses. If you don't have enough information to answer a question, say so clearly. Format your responses in a clear, readable manner with bullet points or sections when appropriate."""
+
+        # Create the user prompt with context
+        user_prompt = f"""Context from processed railway documents:
+{context}
+
+User Question: {message}
+
+Please provide a helpful and accurate response based on the document context above."""
+
+        # Make the API call
+        response = client.chat.completions.create(
+            model=os.getenv("GITHUB_MODEL_NAME", "gpt-4o"),
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            max_tokens=800,
+            temperature=0.3
+        )
+        
+        return response.choices[0].message.content.strip()
+        
+    except Exception as e:
+        print(f"Error generating chat response: {str(e)}")
+        # Fallback to rule-based responses if AI fails
+        return generate_fallback_response(message, processed_data)
+
+def generate_fallback_response(message: str, processed_data: dict) -> str:
+    """
+    Generate fallback responses when AI is unavailable
+    """
+    message_lower = message.lower()
+    
+    if 'type' in message_lower or 'document' in message_lower:
+        doc_type = processed_data.get('document_type', 'Railway Document')
+        return f"Based on my analysis, this appears to be a **{doc_type}**. The document contains railway-specific terminology and follows standard railway documentation formatting."
+    
+    elif 'date' in message_lower or 'schedule' in message_lower:
+        return "I've analyzed the document for dates and schedules. To provide specific information, I would need access to the AI service. Please ensure your GitHub token is configured correctly."
+    
+    elif 'safety' in message_lower or 'compliance' in message_lower:
+        return "The document contains safety and compliance information. For detailed analysis, please ensure the AI service is properly configured with your GitHub token."
+    
+    elif 'summarize' in message_lower or 'summary' in message_lower:
+        summary = processed_data.get('summary', '')
+        if summary:
+            return summary
+        return "This railway document contains operational guidelines, safety protocols, and compliance requirements. For a detailed summary, please ensure the AI service is configured."
+    
+    else:
+        return "I can help analyze your railway documents. For detailed AI-powered responses, please ensure your GitHub token is configured in the environment. Otherwise, I can provide basic information about document types, summaries, and classifications."
+
 @app.route('/api/chat', methods=['POST'])
 def chat_with_documents():
     try:
@@ -191,24 +307,8 @@ def chat_with_documents():
         message = data['message']
         processed_data = data.get('processed_data', {})
         
-        # Simple rule-based responses for demo
-        # In production, this would integrate with the LLM
-        message_lower = message.lower()
-        
-        if 'type' in message_lower or 'document' in message_lower:
-            response = f"Based on my analysis, this appears to be a **{processed_data.get('document_type', 'Railway Document')}**. The document contains railway-specific terminology and follows standard railway documentation formatting."
-        
-        elif 'date' in message_lower or 'schedule' in message_lower:
-            response = "I've identified several key dates and schedules in the document:\n\n• Implementation timeline: Q2 2025\n• Review cycles: Monthly\n• Compliance deadlines: Various throughout the document\n\nWould you like me to extract specific date ranges or schedules?"
-        
-        elif 'safety' in message_lower or 'compliance' in message_lower:
-            response = "The document contains several safety and compliance sections:\n\n• **Safety Protocols**: Standard operating procedures for railway operations\n• **Compliance Requirements**: Regulatory adherence guidelines\n• **Risk Assessment**: Hazard identification and mitigation strategies\n\nThese sections emphasize the importance of following established safety protocols and maintaining compliance with railway regulations."
-        
-        elif 'summarize' in message_lower or 'summary' in message_lower:
-            response = processed_data.get('summary', 'This railway document outlines important operational guidelines, safety protocols, and compliance requirements. Key areas covered include operational procedures, safety guidelines, regulatory compliance, and technical specifications.')
-        
-        else:
-            response = "I've analyzed your question about the railway documents. Based on the processed content, I can provide insights about operational procedures, safety protocols, compliance requirements, and technical specifications. Could you be more specific about what aspect you'd like me to focus on?"
+        # Use the actual LLM service for chat
+        response = generate_chat_response(message, processed_data)
         
         return jsonify({
             'response': response,

@@ -10,8 +10,8 @@ const ChatTab = ({ processedData, isEnabled }) => {
       id: 1,
       type: 'assistant',
       content: isEnabled 
-        ? "Hello! I've analyzed your documents. Ask me anything about the railway documents you've processed."
-        : "Hello! Upload and process documents first, then I can help you analyze them, answer questions, and provide insights about railway-related content."
+        ? "Hello! I've analyzed your documents and I'm ready to help. I can answer questions about the content, extract specific information, explain railway terminology, and provide insights about safety, compliance, and technical specifications. What would you like to know?"
+        : "Hello! Upload and process documents first, then I can help you analyze them, answer questions, and provide insights about railway-related content. I'll use AI to give you detailed, accurate responses based on your documents."
     }
   ])
   const [inputValue, setInputValue] = useState('')
@@ -20,8 +20,10 @@ const ChatTab = ({ processedData, isEnabled }) => {
   const quickQuestions = [
     "What type of railway document is this?",
     "Extract all dates and schedules mentioned",
-    "Find safety and compliance information",
-    "Summarize the main points"
+    "What are the main safety requirements?",
+    "Summarize the key compliance points",
+    "List all technical specifications",
+    "What railway standards are referenced?"
   ]
 
   const handleSendMessage = async (message) => {
@@ -50,12 +52,23 @@ const ChatTab = ({ processedData, isEnabled }) => {
       setMessages(prev => [...prev, assistantMessage])
     } catch (error) {
       console.error('Chat error:', error)
-      const errorMessage = {
+      let errorMessage = 'Sorry, I encountered an error while processing your question. Please try again.'
+      
+      // Provide more specific error messages
+      if (error.response?.status === 500) {
+        errorMessage = 'The AI service encountered an error. This might be due to missing configuration (GitHub token) or service unavailability. I can still provide basic responses.'
+      } else if (error.response?.status === 400) {
+        errorMessage = 'There was an issue with your question format. Please try rephrasing your question.'
+      } else if (error.code === 'ECONNREFUSED') {
+        errorMessage = 'Unable to connect to the backend service. Please ensure the server is running.'
+      }
+      
+      const assistantMessage = {
         id: Date.now() + 1,
         type: 'assistant',
-        content: 'Sorry, I encountered an error while processing your question. Please try again.'
+        content: errorMessage
       }
-      setMessages(prev => [...prev, errorMessage])
+      setMessages(prev => [...prev, assistantMessage])
     } finally {
       setIsTyping(false)
     }
@@ -181,6 +194,21 @@ const ChatTab = ({ processedData, isEnabled }) => {
                     {question}
                   </button>
                 ))}
+              </div>
+              
+              {/* AI Capabilities Info */}
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <h4 className="text-sm font-medium text-blue-800 mb-2">🤖 AI Assistant Capabilities:</h4>
+                <ul className="text-xs text-blue-700 space-y-1">
+                  <li>• Answer questions about document content and structure</li>
+                  <li>• Extract specific information (dates, numbers, references)</li>
+                  <li>• Explain railway terminology and technical concepts</li>
+                  <li>• Analyze safety protocols and compliance requirements</li>
+                  <li>• Provide document summaries and key insights</li>
+                </ul>
+                <p className="text-xs text-blue-600 mt-2">
+                  💡 <strong>Tip:</strong> Ask specific questions for better results!
+                </p>
               </div>
             </div>
           )}
